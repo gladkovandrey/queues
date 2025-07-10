@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  # Go продюсер приложения
+  producer:
+    build: 
+      context: ./producer
+      dockerfile: Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      KAFKA_TOPIC: application-logs
+      MESSAGES_PER_SECOND: ${MESSAGES_PER_SECOND:-1}
+      DURATION_SECONDS: ${DURATION_SECONDS:-0}
+      PRODUCER_ID: producer-${HOSTNAME:-unknown}
+    networks:
+      - kafka-network
+    restart: unless-stopped
+    deploy:
+      replicas: 1
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Go консьюмер приложения
+  consumer:
+    build: 
+      context: ./consumer
+      dockerfile: Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      KAFKA_TOPIC: application-logs
+      CONSUMER_GROUP: log-processors
+      CONSUMER_ID: consumer-${HOSTNAME:-unknown}
+    networks:
+      - kafka-network
+    restart: unless-stopped
+    deploy:
+      replicas: 1
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  kafka-network:
+    external: true
+    name: queues_kafka-network 
