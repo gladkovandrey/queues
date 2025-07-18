@@ -4,6 +4,14 @@ set -e
 
 echo "🛑 Остановка всех сервисов..."
 
+# Останавливаем Stream Processing компоненты (из homework-3)
+echo "🔄 Остановка Stream Processing..."
+if [ -f "homework-3/docker-compose.streams.yml" ]; then
+    cd homework-3
+    docker compose -f docker-compose.streams.yml down --remove-orphans 2>/dev/null || true
+    cd ..
+fi
+
 # Останавливаем приложения
 echo "📱 Остановка приложений..."
 docker compose -f docker-compose.apps.yml down --remove-orphans 2>/dev/null || true
