@@ -1,0 +1,125 @@
+services:
+  # Mapper - фильтрует ERROR логи
+  mapper:
+    build: 
+      context: ./mapper
+      dockerfile: Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      INPUT_TOPIC: application-logs
+      OUTPUT_TOPIC: error-logs
+      CONSUMER_GROUP: error-mapper
+    networks:
+      - kafka-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Aggregator - подсчитывает ошибки по сервисам
+  aggregator:
+    build: 
+      context: ./aggregator
+      dockerfile: Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      INPUT_TOPIC: error-logs
+      OUTPUT_TOPIC: error-stats
+      CONSUMER_GROUP: error-aggregator
+    networks:
+      - kafka-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      - mapper
+
+  # Metrics Producer - генерирует метрики сервисов
+  metrics-producer:
+    build: 
+      context: ./metrics-producer
+      dockerfile: Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      KAFKA_TOPIC: service-metrics
+    networks:
+      - kafka-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Join Processor - объединяет ошибки с метриками
+  join-processor:
+    build: 
+      context: ./join-processor
+      dockerfile: Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      ERROR_TOPIC: error-logs
+      METRICS_TOPIC: service-metrics
+      OUTPUT_TOPIC: enriched-errors
+      CONSUMER_GROUP: join-processor
+    networks:
+      - kafka-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      - mapper
+      - metrics-producer
+
+  # Stats Consumer - отображает статистику ошибок
+  stats-consumer:
+    build: 
+      context: ./stats-consumer
+      dockerfile: Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      KAFKA_TOPIC: error-stats
+      CONSUMER_GROUP: stats-display
+    networks:
+      - kafka-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      - aggregator
+
+  # Enriched Consumer - отображает обогащенные ошибки
+  enriched-consumer:
+    build: 
+      context: ./enriched-consumer
+      dockerfile: Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      KAFKA_TOPIC: enriched-errors
+      CONSUMER_GROUP: enriched-display
+    networks:
+      - kafka-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      - join-processor
+
+networks:
+  kafka-network:
+    external: true
+    name: queues_kafka-network 
