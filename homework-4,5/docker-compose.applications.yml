@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  # ==================== DATA GENERATOR ====================
+  data-generator:
+    build:
+      context: ./data-generator
+      dockerfile: Dockerfile
+    container_name: data-generator
+    environment:
+      DB_HOST: postgres-a
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: password
+      DB_NAME: transactions
+      GENERATION_INTERVAL: 2  # Снижаю частоту генерации до 2 секунд
+    # postgres-a запущен в infrastructure compose
+    networks:
+      - replication-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==================== OUTBOX PUBLISHER ====================
+  outbox-publisher:
+    build:
+      context: ./outbox-publisher
+      dockerfile: Dockerfile
+    container_name: outbox-publisher
+    environment:
+      DB_HOST: postgres-a
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: password
+      DB_NAME: transactions
+      NATS_URL: nats://replication:password123@nats-a-1:4222,nats://replication:password123@nats-a-2:4222,nats://replication:password123@nats-a-3:4222
+      STREAM_NAME: REPLICATION
+      SUBJECT: replication.events
+      POLL_INTERVAL: 0.5  # Увеличиваю частоту опроса до 0.5 секунд
+      BATCH_SIZE: 25      # Увеличиваю размер пакета до 25 событий
+    # Инфраструктура запущена в infrastructure compose
+    networks:
+      - replication-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==================== INBOX PROCESSOR ====================
+  inbox-processor:
+    build:
+      context: ./inbox-processor
+      dockerfile: Dockerfile
+    container_name: inbox-processor
+    environment:
+      DB_HOST: postgres-b
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: password
+      DB_NAME: transactions
+      NATS_URL: nats://replication:password123@nats-b-1:4222,nats://replication:password123@nats-b-2:4222,nats://replication:password123@nats-b-3:4222
+      STREAM_NAME: REPLICATION
+      SUBJECT: replication.events
+      CONSUMER_NAME: inbox-processor
+      BATCH_SIZE: 25      # Увеличиваю размер пакета до 25 событий
+    # Инфраструктура запущена в infrastructure compose
+    networks:
+      - replication-network
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  replication-network:
+    external: true
+    name: homework-45_replication-network 
