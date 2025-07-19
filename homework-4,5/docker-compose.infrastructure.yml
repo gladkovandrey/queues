@@ -1,0 +1,129 @@
+version: '3.8'
+
+services:
+  # ==================== NATS CLUSTER A ====================
+  nats-a-1:
+    image: nats:2.11.4
+    container_name: nats-a-1
+    command: -c /etc/nats-config.conf --name nats-a-1 -p 4222 -m 8222
+    volumes:
+      - ./config/cluster-a.conf:/etc/nats-config.conf
+      - nats_a_1_data:/data
+    ports:
+      - "4222:4222"   # NATS port
+      - "8222:8222"   # HTTP monitoring port
+    networks:
+      - replication-network
+
+  nats-a-2:
+    image: nats:2.11.4
+    container_name: nats-a-2
+    command: -c /etc/nats-config.conf --name nats-a-2 -p 4222 -m 8222
+    volumes:
+      - ./config/cluster-a.conf:/etc/nats-config.conf
+      - nats_a_2_data:/data
+    ports:
+      - "4223:4222"
+    networks:
+      - replication-network
+
+  nats-a-3:
+    image: nats:2.11.4
+    container_name: nats-a-3
+    command: -c /etc/nats-config.conf --name nats-a-3 -p 4222 -m 8222
+    volumes:
+      - ./config/cluster-a.conf:/etc/nats-config.conf
+      - nats_a_3_data:/data
+    ports:
+      - "4224:4222"
+    networks:
+      - replication-network
+
+  # ==================== NATS CLUSTER B ====================
+  nats-b-1:
+    image: nats:2.11.4
+    container_name: nats-b-1
+    command: -c /etc/nats-config.conf --name nats-b-1 -p 4222 -m 8222
+    volumes:
+      - ./config/cluster-b.conf:/etc/nats-config.conf
+      - nats_b_1_data:/data
+    ports:
+      - "4225:4222"
+      - "8223:8222"   # HTTP monitoring port for cluster B
+    networks:
+      - replication-network
+
+  nats-b-2:
+    image: nats:2.11.4
+    container_name: nats-b-2
+    command: -c /etc/nats-config.conf --name nats-b-2 -p 4222 -m 8222
+    volumes:
+      - ./config/cluster-b.conf:/etc/nats-config.conf
+      - nats_b_2_data:/data
+    ports:
+      - "4226:4222"
+    networks:
+      - replication-network
+
+  nats-b-3:
+    image: nats:2.11.4
+    container_name: nats-b-3
+    command: -c /etc/nats-config.conf --name nats-b-3 -p 4222 -m 8222
+    volumes:
+      - ./config/cluster-b.conf:/etc/nats-config.conf
+      - nats_b_3_data:/data
+    ports:
+      - "4227:4222"
+    networks:
+      - replication-network
+
+  # ==================== DATABASE A ====================
+  postgres-a:
+    image: postgres:15-alpine
+    container_name: postgres-a
+    environment:
+      POSTGRES_DB: transactions
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_a_data:/var/lib/postgresql/data
+      - ./sql/init-db-a.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - replication-network
+
+  # ==================== DATABASE B ====================
+  postgres-b:
+    image: postgres:15-alpine
+    container_name: postgres-b
+    environment:
+      POSTGRES_DB: transactions
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_b_data:/var/lib/postgresql/data
+      - ./sql/init-db-b.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - replication-network
+
+volumes:
+  # NATS Cluster A volumes
+  nats_a_1_data:
+  nats_a_2_data:
+  nats_a_3_data:
+  
+  # NATS Cluster B volumes
+  nats_b_1_data:
+  nats_b_2_data:
+  nats_b_3_data:
+  
+  # PostgreSQL volumes
+  postgres_a_data:
+  postgres_b_data:
+
+networks:
+  replication-network:
+    driver: bridge 
